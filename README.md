@@ -1,7 +1,9 @@
 # local_ollama_docker_sandbox_1
 Just a learning project to spin up a local ML model using Ollama and Docker (and Hugging Face?)
-Source: https://www.youtube.com/watch?v=woCce59j2_Y
 
+- Sources:
+ - https://www.youtube.com/watch?v=woCce59j2_Y
+ - 
 ## How to run a large language model locally with Ollama and Docker:
 
 -----
@@ -28,14 +30,15 @@ services:
   ollama:
     container_name: ollama
     image: ollama/ollama:latest
+    volumes:
+      - ollama_models:/root/.ollama
     ports:
       - 11434:11434
-    volumes:
-      - models:/root/.ollama
-    restart: always
+    restart: unless-stopped
 
 volumes:
-  models:
+ ollama_models:
+  name: ollama_models
 ```
 
   * `container_name`: Gives your container a simple name.
@@ -43,6 +46,8 @@ volumes:
   * `ports`: Exposes port `11434` from the container to the same port on your local machine, allowing you to access it.
   * `volumes`: Creates a dedicated storage location for your downloaded models so they aren't lost if the container is stopped or restarted.
   * `restart: always`: Ensures the container automatically restarts if it crashes.
+   * `restart: unless-stopped`: (Alternative) Restart unless stopped
+  * `service`: The parts of the system that we are setting up. In our case it is Ollama but it can be a Flask API or a PHP server
 
 -----
 
