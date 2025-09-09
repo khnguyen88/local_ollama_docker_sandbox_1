@@ -1,5 +1,6 @@
 # local_ollama_docker_sandbox_1
 Just a learning project to spin up a local ML model using Ollama and Docker (and Hugging Face?)
+Source: https://www.youtube.com/watch?v=woCce59j2_Y
 
 ## How to run a large language model locally with Ollama and Docker:
 
