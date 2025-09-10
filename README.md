@@ -58,8 +58,6 @@ volumes:
 
     -   A Dockerfile isn't needed here because you are using a pre-existing Docker image. The docker-compose.yml file specifies image: ollama/ollama:latest, which instructs Docker to pull an image that has already been built and is available on Docker Hub. This image contains all the necessary components to run Ollama, so you don't need to define the build instructions yourself.
 
-    -
-
 ---
 
 ### Step 3: Run the Ollama Container
@@ -524,6 +522,56 @@ docker exec -it ollama-llama2 ollama pull llama2
 # Pull mistral into the second container
 docker exec -it ollama-mistral ollama pull mistral
 ```
+
+# IISSUE 2: CHANGE MODEL FOLDER NAME
+
+# SOLUTION 2:
+
+You can change the volume and folder name from `ollama_models` to `hugging_face_models`. This change will not affect how Ollama works, as long as the volume is correctly mapped to the container's internal path of `/root/.ollama`.
+
+---
+
+## Modifying the `docker-compose.yml`
+
+To change the volume and folder name, you need to update two parts of your `docker-compose.yml` file: the **`volumes` service entry** and the **root-level `volumes` definition**.
+
+### Before (Original)
+
+```yaml
+services:
+    ollama:
+        container_name: ollama
+        image: ollama/ollama:latest
+        volumes:
+            - ollama_models:/root/.ollama # Volume name is 'ollama_models'
+        ports:
+            - 11434:11434
+        restart: unless-stopped
+
+volumes:
+    ollama_models: # Volume is defined here
+        name: ollama_models
+```
+
+### After (Modified)
+
+```yaml
+services:
+    ollama:
+        container_name: ollama
+        image: ollama/ollama:latest
+        volumes:
+            - hugging_face_models:/root/.ollama # Changed to 'hugging_face_models'
+        ports:
+            - 11434:11434
+        restart: unless-stopped
+
+volumes:
+    hugging_face_models: # Changed to 'hugging_face_models'
+        name: hugging_face_models
+```
+
+By making this change, you're telling Docker Compose to use a volume named `hugging_face_models` and to mount it to the correct `/root/.ollama` path inside the container. This new volume will be created when you run `docker compose up`, and all your model data will be stored there. The folder that Docker creates on your local machine to store this volume's data will be managed by Docker and won't be named `hugging_face_models`. The name `hugging_face_models` is for your reference within the Docker ecosystem.
 
 # ASIDE
 
