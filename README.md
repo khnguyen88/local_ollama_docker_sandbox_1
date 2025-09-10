@@ -736,3 +736,134 @@ Here is what the directory tree for the Docker Compose example would look like.
     -   `public/` and `src/`: Standard directories for a React or similar frontend project.
 
 This directory structure keeps the code for each service organized and separate, while the `docker-compose.yml` file acts as a central hub to connect them. The **`context`** and **`dockerfile`** fields in the `docker-compose.yml` file tell Docker where to look for each service's code and build instructions.
+
+---
+
+## HOW TO DEPLOY AND RUN THIS IMAGE ON GOOGLE CLOUD RUN OR GOOGLE KUBERNETES
+
+Yes, you can deploy the same setup to Google Cloud Run and Kubernetes, but the approach to handling persistent storage (your model files) is different. The `docker-compose.yml` file and the bind mount concept are specific to local Docker environments and don't directly translate to a cloud context.
+
+---
+
+### Google Cloud Run
+
+Google Cloud Run is a serverless platform, so you don't directly manage the underlying infrastructure. This means you can't use a simple `docker-compose.yml` file to create persistent volumes. Instead, you'll use a **Cloud Storage bucket** to hold your model files. Cloud Run can then mount this bucket as a volume, making the files accessible to your container as if they were a local directory.
+
+#### Files and Console CLI for Cloud Run:
+
+1.  **Container Image (`Dockerfile`)**: You will need to create a `Dockerfile` that packages your application. This is different from the `docker-compose.yml` which just pulls a pre-existing image. The `Dockerfile` would look something like this:
+
+    ```dockerfile
+    # Use the official Ollama image as the base
+    FROM ollama/ollama:latest
+
+    # Set up the working directory inside the container
+    WORKDIR /app
+
+    # Expose the port Ollama uses
+    EXPOSE 11434
+
+    # Run the Ollama server when the container starts
+    CMD ["ollama", "serve"]
+    ```
+
+2.  **Google Cloud CLI (Console)**: You'll use the `gcloud` command-line tool to deploy and manage the service. The process involves a few key steps:
+
+    -   **Build and push your image**: Use Google Cloud Build to create your image and push it to Google Artifact Registry.
+    -   **Create a storage bucket**: Create a bucket in Cloud Storage to store your `.gguf` files.
+    -   **Deploy the service**: Deploy your image to Cloud Run, specifying the bucket to mount as a volume at `/root/.ollama` inside the container.
+
+    <!-- end list -->
+
+    ```bash
+    # Set your project ID
+    gcloud config set project [YOUR_PROJECT_ID]
+
+    # Build and push your Docker image to Artifact Registry
+    gcloud builds submit --tag [REGION]-docker.pkg.dev/[PROJECT_ID]/[REPOSITORY]/ollama-service .
+
+    # Deploy the service, mounting the Cloud Storage bucket as a volume
+    gcloud run deploy ollama-service \
+      --image [REGION]-docker.pkg.dev/[PROJECT_ID]/[REPOSITORY]/ollama-service \
+      --add-volume name=models-volume,type=cloud-storage,bucket=[YOUR_BUCKET_NAME] \
+      --add-volume-mount volume=models-volume,mount-path=/root/.ollama \
+      --allow-unauthenticated \
+      --region=[REGION] \
+      --memory=[MEMORY_LIMIT] \
+      --cpu=[CPU_LIMIT] \
+      --timeout=3600
+    ```
+
+    You'll need to enable a GPU and configure the resources (memory and CPU) in the Google Cloud Console for the deployment to handle the model's requirements.
+
+---
+
+### Kubernetes (GKE)
+
+Kubernetes requires more configuration files but offers greater control over your infrastructure. Instead of a `docker-compose.yml`, you'll use **YAML manifest files** to define your deployment. This approach is more robust and scalable.
+
+#### Files and Console CLI for Kubernetes:
+
+1.  **Persistent Volume (`PVC.yaml`)**: You'll need a file to request persistent storage for your model files. This is the equivalent of the `volumes` section in `docker-compose`.
+
+    ```yaml
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+        name: ollama-pvc
+    spec:
+        accessModes:
+            - ReadWriteOnce
+        resources:
+            requests:
+                storage: 100Gi # Adjust size based on your model(s)
+    ```
+
+2.  **Deployment (`ollama-deployment.yaml`)**: This file defines the deployment itself, specifying the container image, the port, and how to mount the persistent volume. For a stateful application like Ollama, a **`StatefulSet`** is often the better choice over a simple `Deployment`.
+
+    ```yaml
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+        name: ollama-app
+    spec:
+        serviceName: "ollama-service"
+        replicas: 1
+        selector:
+            matchLabels:
+                app: ollama-app
+        template:
+            metadata:
+                labels:
+                    app: ollama-app
+            spec:
+                containers:
+                    - name: ollama
+                      image: ollama/ollama:latest
+                      ports:
+                          - containerPort: 11434
+                      volumeMounts:
+                          - name: ollama-storage
+                            mountPath: /root/.ollama
+                volumes:
+                    - name: ollama-storage
+                      persistentVolumeClaim:
+                          claimName: ollama-pvc
+    ```
+
+3.  **Kubernetes CLI (`kubectl`)**: You'll use `kubectl` to deploy these files to your cluster.
+
+    ```bash
+    # Apply the Persistent Volume Claim
+    kubectl apply -f PVC.yaml
+
+    # Apply the StatefulSet
+    kubectl apply -f ollama-deployment.yaml
+
+    # You would also need a Service to expose the application externally
+    kubectl apply -f ollama-service.yaml
+    ```
+
+This video shows how to use Cloud Run's volume mounts to manage persistent data.
+[https://www.youtube.com/watch?v=1xlGx50T1Vg](https://www.youtube.com/watch?v=1xlGx50T1Vg)
+http://googleusercontent.com/youtube_content/0
